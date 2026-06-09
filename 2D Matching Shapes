@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shape It Up! - Kindergarten Matching Game</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Fredoka+One&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f172a; /* Dark slate background outside game board */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            user-select: none; /* Prevent text selection while dragging */
+            -webkit-user-select: none;
+        }
+
+        /* Enforces a strict 16:9 ratio that scales to fit the viewport seamlessly */
+        .aspect-board {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: calc(100vh * (16 / 9));
+            max-height: calc(100vw * (9 / 16));
+            aspect-ratio: 16 / 9;
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F6FF 40%, #90EE90 40%, #4ade80 100%); /* Sky and Grass */
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        @media (min-width: 641px) {
+            .aspect-board {
+                border-radius: 2rem;
+                border: 8px solid white;
+            }
+        }
+
+        /* Utility classes for dragging */
+        .shape-draggable {
+            touch-action: none; /* Critical for mobile: prevents screen scroll on touch-drag */
+            will-change: transform;
+        }
+
+        /* Custom scrollbar for trays if needed */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.6); border-radius: 10px; }
+
+        .title-font { font-family: 'Fredoka One', cursive; }
+        
+        /* Floating score animation */
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-60px) scale(1.5); opacity: 0; }
+        }
+        .animate-float {
+            animation: floatUp 1s ease-out forwards;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="aspect-board p-2 sm:p-4 md:p-6" id="game-board">
+        
+        <!-- Header Section -->
+        <header class="bg-white/90 backdrop-blur-sm rounded-2xl p-2 sm:p-4 flex justify-between items-center shadow-lg border-2 border-white/50 shrink-0 z-10">
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="w-10 h-10 sm:w-12 sm:h-12 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl shadow-[inset_0_-4px_4px_rgba(0,0,0,0.2)]">
+                    🎨
+                </div>
+                <h1 class="title-font text-xl sm:text-2xl md:text-4xl text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 tracking-wide drop-shadow-sm">Shape It Up!</h1>
+            </div>
+            
+            <!-- Level Toggle Switch -->
+            <div class="flex bg-gray-200 rounded-full p-1 shadow-inner text-xs sm:text-sm md:text-base font-bold transition-colors" id="level-toggles">
+                <button class="level-btn active px-3 py-1 sm:px-4 sm:py-2 rounded-full text-white bg-blue-500 shadow-md transition-all scale-105" data-level="easy">Easy</button>
+                <button class="level-btn px-3 py-1 sm:px-4 sm:py-2 rounded-full text-gray-500 hover:text-gray-700 transition-all scale-100" data-level="medium">Medium</button>
+                <button class="level-btn px-3 py-1 sm:px-4 sm:py-2 rounded-full text-gray-500 hover:text-gray-700 transition-all scale-100" data-level="hard">Hard</button>
+            </div>
+
+            <!-- Score Display -->
+            <div class="bg-yellow-400 text-yellow-900 px-3 py-1 sm:px-4 sm:py-2 rounded-xl font-bold text-sm sm:text-xl md:text-2xl shadow-[0_4px_0_#ca8a04] border-2 border-yellow-200 flex items-center gap-2 transition-transform" id="score-container">
+                <span class="hidden sm:inline">Score:</span>
+                <span class="sm:hidden">⭐</span>
+                <span id="score-display" class="bg-white/60 px-2 py-0.5 rounded-lg transition-all duration-300 inline-block">0</span>
+            </div>
+        </header>
+
+        <!-- Main Play Area -->
+        <main class="flex-1 flex flex-row gap-3 sm:gap-6 mt-3 sm:mt-6 min-h-0 relative z-0">
+            
+            <!-- Left Side: Draggable Shapes Tray -->
+            <div id="shapes-tray" class="w-[35%] bg-white/40 backdrop-blur-md border-4 border-white/60 rounded-3xl p-2 sm:p-4 shadow-xl overflow-y-auto grid grid-cols-2 gap-2 sm:gap-4 place-items-center content-start sm:content-center relative">
+                <!-- JavaScript will inject shapes here -->
+            </div>
+            
+            <!-- Right Side: Drop Zones -->
+            <div id="drop-zones" class="w-[65%] bg-white/40 backdrop-blur-md border-4 border-white/60 rounded-3xl p-2 sm:p-4 shadow-xl overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4 content-start relative">
+                <!-- JavaScript will inject drop zones here -->
+            </div>
+            
+        </main>
+
+        <!-- Win Overlay -->
+        <div id="win-overlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex-col items-center justify-center p-4 text-center">
+            <h2 class="title-font text-5xl sm:text-7xl text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-blue-500 mb-4 drop-shadow-lg animate-bounce">Awesome!</h2>
+            <p class="text-2xl sm:text-4xl text-gray-700 font-extrabold mb-8 drop-shadow-sm">You are a Shape Superstar! ⭐</p>
+            <button onclick="nextLevelOrRestart()" class="title-font bg-blue-500 hover:bg-blue-600 text-white text-2xl sm:text-4xl px-10 py-4 sm:py-6 rounded-full shadow-[0_8px_0_#2563eb] active:shadow-[0_0px_0_#2563eb] active:translate-y-[8px] transition-all hover:scale-105">
+                Play Again
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. Game Data Definitions --- //
+        
+        // Define SVG strings and colors for all shapes
+        const svgConfig = 'fill="currentColor" stroke="#ffffff" stroke-width="6" stroke-opacity="0.8" stroke-linejoin="round"';
+        const dropShadow = 'drop-shadow-[0_6px_6px_rgba(0,0,0,0.3)]';
+
+        const SHAPES = {
+            circle: { name: 'Circle', colorClass: 'text-red-500', svg: `<circle cx="50" cy="50" r="40" ${svgConfig}/>` },
+            square: { name: 'Square', colorClass: 'text-blue-500', svg: `<rect x="15" y="15" width="70" height="70" rx="12" ${svgConfig}/>` },
+            triangle: { name: 'Triangle', colorClass: 'text-green-500', svg: `<polygon points="50,15 85,80 15,80" ${svgConfig}/>` },
+            rectangle: { name: 'Rectangle', colorClass: 'text-orange-500', svg: `<rect x="10" y="25" width="80" height="50" rx="12" ${svgConfig}/>` },
+            star: { name: 'Star', colorClass: 'text-yellow-400', svg: `<path d="M50 10 L61.8 36.4 L90.5 36.4 L67.3 53.2 L76.2 79.6 L50 60.6 L23.8 79.6 L32.7 53.2 L9.5 36.4 L38.2 36.4 Z" ${svgConfig}/>` },
+            heart: { name: 'Heart', colorClass: 'text-pink-500', svg: `<path d="M50 85 C 50 85, 10 55, 10 30 C 10 15, 30 5, 50 25 C 70 5, 90 15, 90 30 C 90 55, 50 85, 50 85 Z" ${svgConfig}/>` },
+            diamond: { name: 'Diamond', colorClass: 'text-cyan-500', svg: `<polygon points="50,10 85,50 50,90 15,50" ${svgConfig}/>` },
+            oval: { name: 'Oval', colorClass: 'text-purple-500', svg: `<ellipse cx="50" cy="50" rx="45" ry="30" ${svgConfig}/>` }
+        };
+
+        const LEVELS = {
+            easy: ['circle', 'square', 'triangle'],
+            medium: ['circle', 'square', 'triangle', 'rectangle', 'star'],
+            hard: ['circle', 'square', 'triangle', 'rectangle', 'star', 'heart', 'diamond', 'oval']
+        };
+
+        // --- 2. State Variables --- //
+        let currentLevel = 'easy';
+        let score = 0;
+        let matchesMade = 0;
+        
+        // Dragging State
+        let draggedShape = null;
+        let dragClone = null;
+        let startX = 0, startY = 0;
+        let currentZone = null;
+
+        // --- STREAMING_CHUNK:Setting up Audio and Speech Synthesis... --- //
+        // Audio Context for instant UI feedback (synthesized to avoid external assets)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'success') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'error') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(250, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'win') {
+                const notes = [440, 554.37, 659.25, 880]; // A major arpeggio
+                notes.forEach((freq, i) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.frequency.value = freq;
+                    g.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.1);
+                    g.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + i * 0.1 + 0.05);
+                    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + i * 0.1 + 0.4);
+                    o.start(audioCtx.currentTime + i * 0.1);
+                    o.stop(audioCtx.currentTime + i * 0.1 + 0.4);
+                });
+            }
+        }
+
+        // Web Speech API for reading shape names aloud
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Stop any currently playing speech
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2; // Higher pitch for kids
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Ensure AudioContext is unlocked on first interaction
+        document.addEventListener('pointerdown', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }, { once: true });
+
+        // --- STREAMING_CHUNK:Implementing Core Game Logic (Rendering)... --- //
+        
+        function initGame() {
+            // Setup Level Toggle Listeners
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    loadLevel(e.target.dataset.level);
+                });
+            });
+            loadLevel(currentLevel);
+        }
+
+        function loadLevel(level) {
+            currentLevel = level;
+            matchesMade = 0;
+            
+            // Update UI toggles visually
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                if (btn.dataset.level === level) {
+                    btn.className = 'level-btn active px-3 py-1 sm:px-4 sm:py-2 rounded-full text-white bg-blue-500 shadow-md transition-all scale-105';
+                } else {
+                    btn.className = 'level-btn px-3 py-1 sm:px-4 sm:py-2 rounded-full text-gray-500 hover:text-gray-700 transition-all scale-100';
+                }
+            });
+
+            // Get shapes for current level and shuffle them independently for trays
+            const levelShapes = LEVELS[level];
+            const shuffledShapes = [...levelShapes].sort(() => Math.random() - 0.5);
+            const shuffledZones = [...levelShapes].sort(() => Math.random() - 0.5);
+
+            const shapesTray = document.getElementById('shapes-tray');
+            const dropZones = document.getElementById('drop-zones');
+            
+            shapesTray.innerHTML = '';
+            dropZones.innerHTML = '';
+
+            // Render Draggable Shapes
+            shuffledShapes.forEach(shapeId => {
+                const shapeData = SHAPES[shapeId];
+                const wrapper = document.createElement('div');
+                wrapper.className = `shape-draggable w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 ${shapeData.colorClass} ${dropShadow} cursor-grab active:cursor-grabbing transform transition-transform hover:scale-110`;
+                wrapper.dataset.id = shapeId;
+                wrapper.innerHTML = `<svg viewBox="0 0 100 100" class="w-full h-full pointer-events-none">${shapeData.svg}</svg>`;
+                shapesTray.appendChild(wrapper);
+            });
+
+            // Render Target Drop Zones
+            shuffledZones.forEach(shapeId => {
+                const shapeData = SHAPES[shapeId];
+                const zone = document.createElement('div');
+                zone.className = `drop-zone bg-white rounded-2xl shadow-sm border-4 border-transparent flex items-center p-2 sm:p-3 gap-3 transition-all duration-200 transform`;
+                zone.dataset.id = shapeId;
+                zone.innerHTML = `
+                    <div class="zone-hole w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-xl border-4 border-dashed border-gray-300 flex-shrink-0 bg-gray-50 flex items-center justify-center transition-colors relative overflow-visible"></div>
+                    <span class="text-base sm:text-xl lg:text-3xl font-extrabold text-gray-400 flex-1 text-left sm:text-center tracking-wide pointer-events-none">${shapeData.name}</span>
+                `;
+                dropZones.appendChild(zone);
+            });
+        }
+
+        // --- STREAMING_CHUNK:Implementing Touch-compatible Drag & Drop mechanics... --- //
+        
+        // Pointer Events abstract both Mouse and Touch, making it perfectly cross-platform
+        document.addEventListener('pointerdown', onPointerDown);
+
+        function onPointerDown(e) {
+            const targetShape = e.target.closest('.shape-draggable');
+            if (!targetShape) return;
+            
+            draggedShape = targetShape;
+            const rect = draggedShape.getBoundingClientRect();
+            
+            // Announce the shape name playfully!
+            const shapeId = draggedShape.dataset.id;
+            speak(SHAPES[shapeId].name);
+
+            // Create a clone to drag around to avoid flexbox layout jumps
+            dragClone = draggedShape.cloneNode(true);
+            dragClone.classList.remove('hover:scale-110');
+            dragClone.classList.add('fixed', 'pointer-events-none', 'z-[1000]', 'scale-110', 'transition-none');
+            
+            dragClone.style.left = `${rect.left}px`;
+            dragClone.style.top = `${rect.top}px`;
+            dragClone.style.width = `${rect.width}px`;
+            dragClone.style.height = `${rect.height}px`;
+            dragClone.style.margin = '0';
+            document.body.appendChild(dragClone);
+
+            // Hide the original shape while dragging
+            draggedShape.style.opacity = '0';
+
+            // Calculate exact click offset relative to the shape's top-left
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+
+            // Bind move and up globally
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+            document.addEventListener('pointercancel', onPointerUp); // Fallback for interruptions
+        }
+
+        function onPointerMove(e) {
+            if (!dragClone) return;
+            
+            // Move clone directly to pointer
+            dragClone.style.left = `${e.clientX - startX}px`;
+            dragClone.style.top = `${e.clientY - startY}px`;
+
+            // Hit detection against Drop Zones
+            let foundZone = null;
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                const rect = zone.getBoundingClientRect();
+                // Simple AABB collision with pointer coordinates
+                if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    foundZone = zone;
+                }
+            });
+
+            // Handle visual hover states on drop zones
+            if (currentZone && currentZone !== foundZone) {
+                currentZone.classList.remove('ring-4', 'ring-blue-400', 'scale-[1.02]');
+            }
+            if (foundZone) {
+                foundZone.classList.add('ring-4', 'ring-blue-400', 'scale-[1.02]');
+                currentZone = foundZone;
+            } else {
+                currentZone = null;
+            }
+        }
+
+        function onPointerUp(e) {
+            // Unbind movement listeners immediately
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            document.removeEventListener('pointercancel', onPointerUp);
+
+            if (!dragClone) return;
+
+            if (currentZone && currentZone.dataset.id === draggedShape.dataset.id) {
+                // --- SUCCESSFUL MATCH ---
+                playSound('success');
+                updateScore(10);
+                showFloatingPoints('+10', e.clientX, e.clientY);
+                
+                // Styling updates for the target zone
+                currentZone.classList.remove('ring-4', 'ring-blue-400', 'scale-[1.02]');
+                currentZone.classList.add('bg-green-100', 'border-green-400', 'border-solid');
+                
+                const hole = currentZone.querySelector('.zone-hole');
+                hole.classList.remove('border-dashed', 'border-gray-300', 'bg-gray-50');
+                hole.classList.add('border-solid', 'border-transparent');
+                
+                // Change text color to highlight success
+                const textSpan = currentZone.querySelector('span');
+                textSpan.classList.remove('text-gray-400');
+                textSpan.classList.add('text-green-700');
+
+                // Animate clone snapping into the hole center
+                const zRect = hole.getBoundingClientRect();
+                dragClone.style.transition = 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'; // Snappy bounce
+                dragClone.style.left = `${zRect.left + (zRect.width - dragClone.offsetWidth)/2}px`;
+                dragClone.style.top = `${zRect.top + (zRect.height - dragClone.offsetHeight)/2}px`;
+                dragClone.style.transform = 'scale(1)';
+
+                setTimeout(() => {
+                    // Lock shape into place permanently inside the zone
+                    const finalShape = draggedShape.cloneNode(true);
+                    finalShape.classList.remove('shape-draggable', 'cursor-grab', 'active:cursor-grabbing');
+                    finalShape.style.opacity = '1';
+                    finalShape.style.width = '100%';
+                    finalShape.style.height = '100%';
+                    finalShape.style.position = 'absolute';
+                    finalShape.style.top = '0'; finalShape.style.left = '0';
+                    hole.appendChild(finalShape);
+                    
+                    // Cleanup
+                    dragClone.remove();
+                    draggedShape.remove(); // Remove permanently from left tray
+                    
+                    cleanupDragState();
+                    
+                    matchesMade++;
+                    if (matchesMade === LEVELS[currentLevel].length) {
+                        handleWin();
+                    }
+                }, 200);
+
+            } else {
+                // --- INCORRECT OR DROPPED NOWHERE ---
+                if (currentZone) {
+                    currentZone.classList.remove('ring-4', 'ring-blue-400', 'scale-[1.02]');
+                    playSound('error');
+                    
+                    // Minor screen shake on wrong drop
+                    currentZone.animate([
+                        { transform: 'translateX(0)' },
+                        { transform: 'translateX(-5px)' },
+                        { transform: 'translateX(5px)' },
+                        { transform: 'translateX(0)' }
+                    ], { duration: 300 });
+                }
+
+                // Snap clone back to its original slot smoothly
+                const rect = draggedShape.getBoundingClientRect();
+                dragClone.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                dragClone.style.left = `${rect.left}px`;
+                dragClone.style.top = `${rect.top}px`;
+                dragClone.style.transform = 'scale(1)';
+
+                setTimeout(() => {
+                    draggedShape.style.opacity = '1';
+                    dragClone.remove();
+                    cleanupDragState();
+                }, 300);
+            }
+        }
+
+        function cleanupDragState() {
+            dragClone = null;
+            draggedShape = null;
+            currentZone = null;
+        }
+
+        // --- STREAMING_CHUNK:Implementing Points System and Feedback... --- //
+
+        function updateScore(points) {
+            score += points;
+            const scoreDisplay = document.getElementById('score-display');
+            scoreDisplay.textContent = score;
+            
+            // Pop animation on score change
+            scoreDisplay.classList.add('scale-150', 'text-green-600');
+            setTimeout(() => {
+                scoreDisplay.classList.remove('scale-150', 'text-green-600');
+            }, 300);
+        }
+
+        function showFloatingPoints(text, x, y) {
+            const floatEl = document.createElement('div');
+            floatEl.className = 'fixed text-3xl font-black text-green-500 drop-shadow-lg z-[2000] pointer-events-none animate-float title-font';
+            floatEl.textContent = text;
+            floatEl.style.left = `${x}px`;
+            floatEl.style.top = `${y}px`;
+            document.body.appendChild(floatEl);
+            setTimeout(() => floatEl.remove(), 1000);
+        }
+
+        // --- STREAMING_CHUNK:Implementing Level Completion and Visual Effects... --- //
+
+        function handleWin() {
+            playSound('win');
+            launchConfetti();
+            
+            setTimeout(() => {
+                const overlay = document.getElementById('win-overlay');
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                speak("Great job! You are a Shape Superstar!");
+            }, 1000);
+        }
+
+        function nextLevelOrRestart() {
+            const overlay = document.getElementById('win-overlay');
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+            
+            // Simple level progression loop
+            if (currentLevel === 'easy') loadLevel('medium');
+            else if (currentLevel === 'medium') loadLevel('hard');
+            else loadLevel('easy'); // Restart at easy if completed hard
+        }
+
+        // Confetti Particle System using native DOM and Web Animations API
+        function launchConfetti() {
+            const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#FACC15', '#EC4899', '#8B5CF6'];
+            const gameBoard = document.getElementById('game-board');
+            
+            for (let i = 0; i < 80; i++) {
+                const conf = document.createElement('div');
+                conf.style.position = 'absolute';
+                conf.style.width = '12px';
+                conf.style.height = '12px';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.left = '50%';
+                conf.style.top = '50%';
+                conf.style.borderRadius = Math.random() > 0.5 ? '50%' : '0'; // Mix of circles and squares
+                conf.style.zIndex = '100';
+                conf.style.pointerEvents = 'none';
+                
+                // Explode outwards radially with gravity bias
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = 100 + Math.random() * 250;
+                const tx = Math.cos(angle) * velocity;
+                const ty = Math.sin(angle) * velocity - 200; 
+                
+                conf.style.transform = `translate(-50%, -50%)`;
+                
+                conf.animate([
+                    { transform: `translate(-50%, -50%) scale(1) rotate(0deg)`, opacity: 1 },
+                    { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(1.5) rotate(${Math.random()*360}deg)`, offset: 0.6 },
+                    { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty + 300}px)) scale(0) rotate(${Math.random()*720}deg)`, opacity: 0 }
+                ], {
+                    duration: 1500 + Math.random() * 1500,
+                    easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+                    fill: 'forwards'
+                });
+                
+                gameBoard.appendChild(conf);
+                setTimeout(() => conf.remove(), 3000);
+            }
+        }
+
+        // Start the game!
+        initGame();
+
+    </script>
+</body>
+</html>
